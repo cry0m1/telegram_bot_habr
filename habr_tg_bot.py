@@ -2,15 +2,16 @@ import asyncio
 import json
 import logging
 import os
-import requests
+import shlex
+
 import aiohttp
+import memcache
+import requests
 from aiohttp import ClientResponseError
 from bs4 import BeautifulSoup
-from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 from nats.aio.client import Client as NATS
-import memcache
-import shlex
+from telegram import Bot, Update
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
 # ================== CONFIG ==================
 
@@ -392,7 +393,6 @@ async def detect_ai_score_batch(texts: list[str]) -> list[int | None]:
         return [None] * len(texts)
 
 
-
 async def message_handler(msg):
     data = json.loads(msg.data.decode())
     user_id = data.get("user_id")
@@ -430,11 +430,11 @@ async def message_handler(msg):
                     cached_scores.append(None)
                     indexes_to_check.append(i)
 
-            print(f"message_handler:cached_scores = {len(cached_scores)}")
-            print(f"message_handler:indexes_to_check = {len(indexes_to_check)}")
+            print(f"message_handler:cached_scores = {cached_scores}")
+            print(f"message_handler:indexes_to_check = {indexes_to_check}")
 
             if indexes_to_check:
-               loop = asyncio.get_running_loop()
+                loop = asyncio.get_running_loop()
                 texts = await asyncio.gather(
                     *(
                         loop.run_in_executor(None, fetch_article_text, chunk[i]["link"])

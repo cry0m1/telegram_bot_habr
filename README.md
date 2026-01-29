@@ -2,6 +2,11 @@
 
 ```sh
 cd telegram_bot_habr
+
+mv .envrc.template .envrc
+# edit .envrc
+# export variables from .envrc
+
 podman build -t habr_bot_worker:$(date +%s) -t habr_bot_worker:latest .
 
 podman pod rm -f habr-pod 2>/dev/null || true
