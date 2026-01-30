@@ -313,7 +313,7 @@ async def parse_habr_articles():
 
 # ================== AI ==================
 
-# used requests as habr babs async
+# used requests as habr bans async some way
 def fetch_article_text(url, max_chars=5000):
     try:
         resp = requests.get(url, timeout=10)
