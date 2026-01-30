@@ -20,6 +20,8 @@ Read Habr weekly
 - Помечает бесполезные статьи согласно стоп-слов /stop_words
 - Проверяет на AI текст /habr_ai
 
+## HOW TO
+
 ```sh
 cd telegram_bot_habr
 
