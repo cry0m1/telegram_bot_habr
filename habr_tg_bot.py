@@ -167,7 +167,7 @@ async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Авторы:\n" + "\n".join(f"- {w}" for w in AUTHORS),
         ]
     elif "/propose" in message:
-        email_link = f"yulik_86@mal.ru"
+        email_link = "yulik_86@mal.ru"
         response = f"Предложить новое стоп-слово! Мы рассмотрим его в ближайшее время.\n\nОтправить подробности на почту: {email_link}"
     elif "/start" in message:
         response = (
@@ -312,6 +312,7 @@ async def parse_habr_articles():
 
 
 # ================== AI ==================
+
 
 # used requests as habr bans async some way
 def fetch_article_text(url, max_chars=5000):
@@ -481,10 +482,7 @@ async def message_handler(msg):
         else:
             for a in chunk:
                 out.append(
-                    f"{a['title']}\n"
-                    f"{a['link']}\n"
-                    f"{a['snippet']}\n"
-                    f"------------------"
+                    f"{a['title']}\n{a['link']}\n{a['snippet']}\n------------------"
                 )
 
         progress = min(start + BATCH_SIZE, total_articles)
