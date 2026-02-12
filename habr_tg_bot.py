@@ -117,6 +117,7 @@ AUTHORS = [
     "SLY_G",
     "timonin",
     "the_annnisss",  # LLM slop
+    "AlekseiPodkletnov",
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
