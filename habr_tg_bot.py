@@ -20,7 +20,9 @@ NATS_SUBJECT = "habr.requests"
 NATS_URL = "nats://nats:4222"
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = "tngtech/deepseek-r1t2-chimera:free"
+OPENROUTER_MODEL = (
+    "deepseek/deepseek-r1-0528:free"  # meta-llama/llama-3.3-70b-instruct:free
+)
 AI_CACHE_TTL = 60 * 60 * 24 * 7  # 7 days
 WEEKLY_NUM_OF_PAGES = 6  # 20 articles per page
 BATCH_SIZE = 5
@@ -461,7 +463,7 @@ async def message_handler(msg):
 
             for a, score in zip(chunk, scores):
                 if score is None:
-                    score_text = "~~AI score retrieval error~~"
+                    score_text = "🩹AI score retrieval error"
                 else:
                     if score >= 75:
                         emoji = "🤖"
