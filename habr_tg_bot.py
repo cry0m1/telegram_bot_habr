@@ -119,6 +119,7 @@ AUTHORS = [
     "the_annnisss",  # LLM slop
     "AlekseiPodkletnov",
     "xonika9",  # LLM slop
+    "double_bobik",  # ad & SEO garbage
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
@@ -460,7 +461,7 @@ async def message_handler(msg):
 
             for a, score in zip(chunk, scores):
                 if score is None:
-                    score_text = "AI score retrieval error"
+                    score_text = "~~AI score retrieval error~~"
                 else:
                     if score >= 75:
                         emoji = "🤖"
