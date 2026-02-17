@@ -122,6 +122,8 @@ AUTHORS = [
     "AlekseiPodkletnov",
     "xonika9",  # LLM slop
     "double_bobik",  # ad & SEO garbage
+    "cyberscoper",  # LLM
+    "ScriptShaper",  # LLM slop
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
@@ -256,6 +258,7 @@ def strike_stopwords(text, stopwords):
 async def parse_habr_articles():
     articles_raw = []
 
+    # TOP WEEKLY
     html = await fetch_html("https://habr.com/ru/articles/top/weekly/")
     soup = BeautifulSoup(html, "html.parser")
 
@@ -282,11 +285,13 @@ async def parse_habr_articles():
         for post in soup.select("article.tm-articles-list__item"):
             articles_raw.append(extract_article(post))
 
+    # RationalAnswer WEEKLY
     html = await fetch_html("https://habr.com/ru/users/RationalAnswer/articles/")
     soup = BeautifulSoup(html, "html.parser")
     for post in soup.select("article.tm-articles-list__item")[: (BATCH_SIZE + 1)]:
         articles_raw.append(extract_article(post))
 
+    # finance WEEKLY
     html = await fetch_html("https://habr.com/ru/hubs/finance/articles/top/weekly/")
     soup = BeautifulSoup(html, "html.parser")
     for post in soup.select("article.tm-articles-list__item")[: (BATCH_SIZE * 2 + 1)]:
