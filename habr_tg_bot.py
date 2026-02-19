@@ -21,7 +21,7 @@ NATS_URL = "nats://nats:4222"
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = (
-    "deepseek/deepseek-r1-0528:free"  # meta-llama/llama-3.3-70b-instruct:free
+    "nvidia/nemotron-3-nano-30b-a3b:free"  # meta-llama/llama-3.3-70b-instruct:free
 )
 AI_CACHE_TTL = 60 * 60 * 24 * 7  # 7 days
 WEEKLY_NUM_OF_PAGES = 6  # 20 articles per page
@@ -121,9 +121,14 @@ AUTHORS = [
     "the_annnisss",  # LLM slop
     "AlekseiPodkletnov",
     "xonika9",  # LLM slop
-    "double_bobik",  # ad & SEO garbage
+    "double_bobik",  # ad network | SEO garbage
     "cyberscoper",  # LLM
     "ScriptShaper",  # LLM slop
+    "Keshah",  # LLM rewriter
+    "varanio",  # rewriter
+    "DazzleBizzareAdventure",  # rewriter
+    "PSDK_XP",  # rewriter
+    "MDyuzhev",  # rewriter
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
