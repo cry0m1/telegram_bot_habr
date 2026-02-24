@@ -129,6 +129,7 @@ AUTHORS = [
     "DazzleBizzareAdventure",  # rewriter
     "PSDK_XP",  # rewriter
     "MDyuzhev",  # rewriter
+    "tripolskypetr",  # senseless bullshit
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
@@ -364,7 +365,7 @@ async def detect_ai_score_batch(texts: list[str]) -> list[int | None]:
         combined_prompt += f'Text {i}:\n"""\n{text}\n"""\n\n'
     combined_prompt += (
         "Return ONLY a JSON array of integers from 0 to 100, "
-        "each representing AI likelihood for the corresponding text."
+        "each representing AI generated article likelihood for the corresponding text."
     )
 
     session = await get_http_session()
