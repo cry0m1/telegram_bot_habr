@@ -130,6 +130,7 @@ AUTHORS = [
     "PSDK_XP",  # rewriter
     "MDyuzhev",  # rewriter
     "tripolskypetr",  # senseless bullshit
+    "lunnemone",  #  politics, rewriter
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
