@@ -131,6 +131,7 @@ AUTHORS = [
     "MDyuzhev",  # rewriter
     "tripolskypetr",  # senseless bullshit
     "lunnemone",  #  politics, rewriter
+    "Soldier22", # LLM slop
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
