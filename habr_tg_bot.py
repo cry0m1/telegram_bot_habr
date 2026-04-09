@@ -131,7 +131,10 @@ AUTHORS = [
     "MDyuzhev",  # rewriter
     "tripolskypetr",  # senseless bullshit
     "lunnemone",  #  politics, rewriter
-    "Soldier22", # LLM slop
+    "Soldier22",  # LLM slop
+    "ignatenkosergey",  # LLM slop
+    "inkedsymon",  # LLM rewriter
+    "strannik96",  # LLM rewriter
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
@@ -438,7 +441,6 @@ async def message_handler(msg):
         # ---- AI MODE ----
         if "/habr_ai" in message:
             cached_scores: list[int | None] = []
-            texts_to_check: list[str] = []
             indexes_to_check: list[int] = []
 
             for i, a in enumerate(chunk):
