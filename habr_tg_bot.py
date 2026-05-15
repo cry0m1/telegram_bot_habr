@@ -2,8 +2,9 @@ import asyncio
 import json
 import logging
 import os
-import shlex
+import time
 
+import shlex
 import aiohttp
 import memcache
 import requests
@@ -26,6 +27,8 @@ OPENROUTER_MODEL = (
 AI_CACHE_TTL = 60 * 60 * 24 * 7  # 7 days
 WEEKLY_NUM_OF_PAGES = 6  # 20 articles per page
 BATCH_SIZE = 5
+OPENROUTER_REQUEST_TIMEOUT_SEC = 60
+OPENROUTER_MAX_ATTEMPTS = 2
 
 # ================== CONST ==================
 
@@ -363,14 +366,43 @@ async def detect_ai_score_batch(texts: list[str]) -> list[int | None]:
     """
     Sends up to ~8 texts per API call, returns list of AI scores or None.
     """
+    if not texts:
+        return [None] * len(texts)
+
     combined_prompt = (
         "Estimate AI likelihood for each of the following texts separately.\n\n"
     )
     for i, text in enumerate(texts, 1):
         combined_prompt += f'Text {i}:\n"""\n{text}\n"""\n\n'
     combined_prompt += (
-        "Return ONLY a JSON array of integers from 0 to 100, "
-        "each representing AI generated article likelihood for the corresponding text."
+        "Use these AI text detection signals when scoring. Treat each match as a signal, "
+        "not absolute proof.\n"
+        "1. Gerund-participle chains: flag sentences that stack multiple "
+        "participles/gerunds in sequence (more than one in one sentence), especially "
+        "when they feel mechanical.\n"
+        "2. Formulaic constructions: flag phrases like 'serves as a foundation', "
+        "'acts as', 'represents' used where plain 'is' would be natural.\n"
+        "3. Three-item lists: flag repeated enumerations with exactly three elements; "
+        "human text varies list length more often.\n"
+        "4. Forced synonym rotation: flag unnatural synonym swaps done only for "
+        "variation, such as replacing a stable topic word with near-synonyms without "
+        "meaning change.\n"
+        "5. Empty lead-ins: flag filler intros such as 'it is important to note', "
+        "'it is worth emphasizing', 'it should be considered', 'it cannot be ignored' "
+        "when they add no content.\n"
+        "6. Promotional adjectives: flag marketing-heavy wording like 'unique', "
+        "'stunning', 'leading', 'in the heart of' in neutral or informational contexts.\n"
+        "7. English calque patterns: flag direct translation templates like 'plays a "
+        "key role', 'in conclusion', 'as of today' when overused.\n"
+        "8. Contrast template: flag frequent 'not X, but Y' or 'this is not X, this is "
+        "Y' constructions.\n"
+        "9. Didactic tone: flag teacher-like directives such as 'let's consider', 'it "
+        "is necessary to understand', 'it is critically important'.\n"
+        "10. Over-smoothed transitions: flag text that inserts a transition between "
+        "nearly every sentence, such as 'moreover', 'in this regard', 'also', creating "
+        "artificial flow.\n\n"
+        "Return ONLY a JSON array of integers from 0 to 100, each representing the AI "
+        "generated article likelihood for the corresponding text based on these signals."
     )
 
     session = await get_http_session()
@@ -386,6 +418,12 @@ async def detect_ai_score_batch(texts: list[str]) -> list[int | None]:
         "temperature": 0.0,
     }
 
+    logging.debug(
+        "detect_ai_score_batch: sending OpenRouter request (model=%s, texts=%d)",
+        OPENROUTER_MODEL,
+        len(texts),
+    )
+
     curl_cmd = (
         f"curl -X POST {shlex.quote(url)} "
         f"-H 'Authorization: {headers['Authorization']}' "
@@ -394,123 +432,169 @@ async def detect_ai_score_batch(texts: list[str]) -> list[int | None]:
     )
     print(f"detect_ai_score_batch:\n{curl_cmd}")
 
-    async with session.post(url, headers=headers, json=payload) as r:
-        if r.status == 200:
-            data = await r.json()
-            raw = data["choices"][0]["message"]["content"]
-            try:
+    for attempt in range(1, OPENROUTER_MAX_ATTEMPTS + 1):
+        started_at = time.monotonic()
+        try:
+            timeout = aiohttp.ClientTimeout(total=OPENROUTER_REQUEST_TIMEOUT_SEC)
+            async with session.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=timeout,
+            ) as r:
+                if r.status != 200:
+                    error_text = await r.text()
+                    raise aiohttp.ClientError(
+                        f"OpenRouter status {r.status}: {error_text[:300]}"
+                    )
+
+                data = await r.json()
+                raw = data["choices"][0]["message"]["content"]
                 scores = json.loads(raw)
                 scores = [max(0, min(100, int(s))) for s in scores]
                 return scores
-            except Exception as e:
-                logging.error(
-                    f"Failed to parse AI batch scores: {e}, raw response: {raw}"
-                )
-                return [None] * len(texts)
 
-        error_text = await r.text()
-        logging.error(
-            f"HTTP error from OpenRouter API:\nStatus: {r.status}\nBody: {error_text}"
-        )
-        return [None] * len(texts)
+        except (
+            asyncio.TimeoutError,
+            aiohttp.ClientError,
+            json.JSONDecodeError,
+            KeyError,
+            TypeError,
+            ValueError,
+            IndexError,
+        ) as e:
+            elapsed_sec = time.monotonic() - started_at
+            if attempt < OPENROUTER_MAX_ATTEMPTS:
+                logging.warning(
+                    "OpenRouter batch attempt %d/%d failed after %.1fs (%s): %s",
+                    attempt,
+                    OPENROUTER_MAX_ATTEMPTS,
+                    elapsed_sec,
+                    type(e).__name__,
+                    e,
+                )
+                continue
+
+            logging.error(
+                "OpenRouter batch attempt %d/%d failed after %.1fs (%s): %s",
+                attempt,
+                OPENROUTER_MAX_ATTEMPTS,
+                elapsed_sec,
+                type(e).__name__,
+                e,
+            )
+            return [None] * len(texts)
+
+    return [None] * len(texts)
 
 
 async def message_handler(msg):
-    data = json.loads(msg.data.decode())
-    user_id = data.get("user_id")
-    message = data.get("message")
+    user_id = None
+    try:
+        data = json.loads(msg.data.decode())
+        user_id = data.get("user_id")
+        message = data.get("message")
 
-    cache_key = "habr_articles_v1"
-    articles = mc.get(cache_key)
+        cache_key = "habr_articles_v1"
+        articles = mc.get(cache_key)
 
-    if not articles:
-        articles = await parse_habr_articles()
-        if articles:
-            mc.set(cache_key, articles, time=3600)
+        if not articles:
+            articles = await parse_habr_articles()
+            if articles:
+                mc.set(cache_key, articles, time=3600)
 
-    if not articles:
-        await bot.send_message(chat_id=user_id, text="Не удалось получить статьи.")
-        return
+        if not articles:
+            await bot.send_message(chat_id=user_id, text="Не удалось получить статьи.")
+            return
 
-    total_articles = len(articles)
+        total_articles = len(articles)
 
-    for start in range(0, total_articles, BATCH_SIZE):
-        chunk = articles[start : start + BATCH_SIZE]
-        out = []
+        for start in range(0, total_articles, BATCH_SIZE):
+            chunk = articles[start : start + BATCH_SIZE]
+            out = []
 
-        # ---- AI MODE ----
-        if "/habr_ai" in message:
-            cached_scores: list[int | None] = []
-            indexes_to_check: list[int] = []
+            # ---- AI MODE ----
+            if "/habr_ai" in message:
+                cached_scores: list[int | None] = []
+                indexes_to_check: list[int] = []
 
-            for i, a in enumerate(chunk):
-                cached = mc.get(f"ai_score:{a['link']}")
-                if cached is not None:
-                    cached_scores.append(cached)
-                else:
-                    cached_scores.append(None)
-                    indexes_to_check.append(i)
-
-            print(f"message_handler:cached_scores = {cached_scores}")
-            print(f"message_handler:indexes_to_check = {indexes_to_check}")
-
-            if indexes_to_check:
-                loop = asyncio.get_running_loop()
-                texts = await asyncio.gather(
-                    *(
-                        loop.run_in_executor(None, fetch_article_text, chunk[i]["link"])
-                        for i in indexes_to_check
-                    )
-                )
-
-                new_scores = await detect_ai_score_batch(texts)
-
-                for idx, score in zip(indexes_to_check, new_scores):
-                    if score is not None:
-                        mc.set(
-                            f"ai_score:{chunk[idx]['link']}",
-                            score,
-                            time=AI_CACHE_TTL,
-                        )
-                    cached_scores[idx] = score
-
-            scores = cached_scores
-
-            for a, score in zip(chunk, scores):
-                if score is None:
-                    score_text = "🩹AI score retrieval error"
-                else:
-                    if score >= 75:
-                        emoji = "🤖"
-                    elif score >= 50:
-                        emoji = "⚠️"
-                    elif score >= 25:
-                        emoji = "👀"
+                for i, a in enumerate(chunk):
+                    cached = mc.get(f"ai_score:{a['link']}")
+                    if cached is not None:
+                        cached_scores.append(cached)
                     else:
-                        emoji = "👤"
-                    score_text = f"AI score: {score}/100 {emoji}"
+                        cached_scores.append(None)
+                        indexes_to_check.append(i)
 
-                out.append(
-                    f"{a['title']}\n"
-                    f"{score_text}\n"
-                    f"{a['link']}\n"
-                    f"{a['snippet']}\n"
-                    f"------------------"
-                )
+                print(f"message_handler:cached_scores = {cached_scores}")
+                print(f"message_handler:indexes_to_check = {indexes_to_check}")
 
-        # ---- NORMAL MODE ----
-        else:
-            for a in chunk:
-                out.append(
-                    f"{a['title']}\n{a['link']}\n{a['snippet']}\n------------------"
-                )
+                if indexes_to_check:
+                    loop = asyncio.get_running_loop()
+                    texts = await asyncio.gather(
+                        *(
+                            loop.run_in_executor(
+                                None, fetch_article_text, chunk[i]["link"], 2000
+                            )
+                            for i in indexes_to_check
+                        )
+                    )
 
-        progress = min(start + BATCH_SIZE, total_articles)
-        out.append(f"Processed {progress} of {total_articles} articles.")
+                    new_scores = await detect_ai_score_batch(texts)
 
-        await bot.send_message(chat_id=user_id, text="\n".join(out))
+                    for idx, score in zip(indexes_to_check, new_scores):
+                        if score is not None:
+                            mc.set(
+                                f"ai_score:{chunk[idx]['link']}",
+                                score,
+                                time=AI_CACHE_TTL,
+                            )
+                        cached_scores[idx] = score
 
-        print("-------------------------")
+                scores = cached_scores
+
+                for a, score in zip(chunk, scores):
+                    if score is None:
+                        score_text = "🩹AI score retrieval error"
+                    else:
+                        if score >= 75:
+                            emoji = "🤖"
+                        elif score >= 50:
+                            emoji = "⚠️"
+                        elif score >= 25:
+                            emoji = "👀"
+                        else:
+                            emoji = "👤"
+                        score_text = f"AI score: {score}/100 {emoji}"
+
+                    out.append(
+                        f"{a['title']}\n"
+                        f"{score_text}\n"
+                        f"{a['link']}\n"
+                        f"{a['snippet']}\n"
+                        f"------------------"
+                    )
+
+            # ---- NORMAL MODE ----
+            else:
+                for a in chunk:
+                    out.append(
+                        f"{a['title']}\n{a['link']}\n{a['snippet']}\n------------------"
+                    )
+
+            progress = min(start + BATCH_SIZE, total_articles)
+            out.append(f"Processed {progress} of {total_articles} articles.")
+
+            await bot.send_message(chat_id=user_id, text="\n".join(out))
+
+            print("-------------------------")
+    except Exception:
+        logging.exception("Unhandled exception in message_handler")
+        if user_id is not None:
+            await bot.send_message(
+                chat_id=user_id,
+                text="⚠️ Не удалось обработать запрос полностью. Попробуйте ещё раз позже.",
+            )
 
 
 async def start_worker():
