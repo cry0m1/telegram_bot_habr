@@ -138,6 +138,7 @@ AUTHORS = [
     "ignatenkosergey",  # LLM slop
     "inkedsymon",  # LLM rewriter
     "strannik96",  # LLM rewriter
+    "claudedev", # LLM slop
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
