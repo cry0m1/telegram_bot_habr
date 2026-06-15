@@ -5,6 +5,8 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+ENV PATH="/app/.venv/bin:${PATH}"
+
 RUN python -m pip install --no-cache-dir uv
 
 COPY pyproject.toml uv.lock ./
