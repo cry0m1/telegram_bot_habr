@@ -5,14 +5,12 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-RUN pip install --no-cache-dir --upgrade uv
+RUN python -m pip install --no-cache-dir uv
 
-COPY requirements.txt .
-
-RUN uv pip install --system -r requirements.txt
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-install-project
 
 COPY habr_tg_bot.py .
 
 ENTRYPOINT ["python", "/app/habr_tg_bot.py"]
 CMD ["--mode", "bot"]
-
