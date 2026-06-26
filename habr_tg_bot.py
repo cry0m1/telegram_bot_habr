@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import json
 import logging
 import os
@@ -139,6 +140,7 @@ AUTHORS = [
     "inkedsymon",  # LLM rewriter
     "strannik96",  # LLM rewriter
     "claudedev", # LLM slop
+    "tripolskypetr" # trader
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
@@ -201,10 +203,10 @@ async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Проверяет на AI текст /habr_ai"
         )
     elif "/habr_ai" in message:
-        response = "⏳ Подождите, мы собираем статьи... (это будет долго... возможно)"
+        response = "⏳ Подождите, мы собираем статьи... (это будет долго... возможно) [" + str(datetime.now()) + "]"
         await nc.publish(NATS_SUBJECT, json.dumps(payload).encode())
     else:
-        response = "⏳ Подождите, мы собираем статьи..."
+        response = "⏳ Подождите, мы собираем статьи... [" + str(datetime.now()) + "]"
         await nc.publish(NATS_SUBJECT, json.dumps(payload).encode())
 
     # Sending the response(s)
