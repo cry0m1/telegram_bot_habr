@@ -14,5 +14,5 @@ RUN uv sync --locked --no-install-project
 
 COPY habr_tg_bot.py .
 
-ENTRYPOINT ["/app/.venv/bin/python", "/app/habr_tg_bot.py"]
+ENTRYPOINT ["python", "habr_tg_bot.py"]
 CMD ["--mode", "bot"]

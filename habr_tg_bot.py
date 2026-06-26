@@ -14,6 +14,10 @@ from bs4 import BeautifulSoup
 from nats.aio.client import Client as NATS
 from telegram import Bot, Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
+from telegram.error import TimedOut
+from telegram.request import HTTPXRequest
+from telegram.error import TimedOut
+from telegram.request import HTTPXRequest
 
 # ================== CONFIG ==================
 
@@ -30,6 +34,10 @@ WEEKLY_NUM_OF_PAGES = 6  # 20 articles per page
 BATCH_SIZE = 5
 OPENROUTER_REQUEST_TIMEOUT_SEC = 60
 OPENROUTER_MAX_ATTEMPTS = 2
+
+TELEGRAM_REQUEST_TIMEOUT_SEC = 30
+TELEGRAM_SEND_MESSAGE_RETRIES = 3
+TELEGRAM_SEND_MESSAGE_RETRY_DELAY = 2
 
 # ================== CONST ==================
 
@@ -147,9 +155,31 @@ STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
 
 # ================== GLOBALS ==================
 
-bot = Bot(token=BOT_TOKEN)
+# Configure telegram bot with custom timeout
+request = HTTPXRequest(connect_timeout=TELEGRAM_REQUEST_TIMEOUT_SEC, read_timeout=TELEGRAM_REQUEST_TIMEOUT_SEC)
+bot = Bot(token=BOT_TOKEN, request=request)
 mc = memcache.Client(["memcached:11211"])
 http_session: aiohttp.ClientSession | None = None
+
+
+# By Copilot
+async def send_message_with_retry(bot: Bot, chat_id: int, text: str, max_retries: int = TELEGRAM_SEND_MESSAGE_RETRIES, retry_delay: float = TELEGRAM_SEND_MESSAGE_RETRY_DELAY) -> bool:
+    """Send message to Telegram with retry logic for timeout errors."""
+    for attempt in range(max_retries):
+        try:
+            await bot.send_message(chat_id=chat_id, text=text)
+            return True
+        except TimedOut:
+            if attempt < max_retries - 1:
+                logging.warning(f"Telegram timeout (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                await asyncio.sleep(retry_delay)
+            else:
+                logging.error(f"Failed to send message after {max_retries} attempts: TimedOut")
+                return False
+        except Exception as e:
+            logging.error(f"Error sending message: {e}")
+            return False
+    return False
 
 
 async def get_http_session():
@@ -203,10 +233,10 @@ async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Проверяет на AI текст /habr_ai"
         )
     elif "/habr_ai" in message:
-        response = "⏳ Подождите, мы собираем статьи... (это будет долго... возможно) [" + str(datetime.now()) + "]"
+        response = "⏳ Подождите, мы собираем статьи... (это будет долго... возможно) [UTC " + str(datetime.datetime.now()) + "]"
         await nc.publish(NATS_SUBJECT, json.dumps(payload).encode())
     else:
-        response = "⏳ Подождите, мы собираем статьи... [" + str(datetime.now()) + "]"
+        response = "⏳ Подождите, мы собираем статьи... [UTC " + str(datetime.datetime.now()) + "]"
         await nc.publish(NATS_SUBJECT, json.dumps(payload).encode())
 
     # Sending the response(s)
@@ -588,15 +618,17 @@ async def message_handler(msg):
             progress = min(start + BATCH_SIZE, total_articles)
             out.append(f"Processed {progress} of {total_articles} articles.")
 
-            await bot.send_message(chat_id=user_id, text="\n".join(out))
+            await send_message_with_retry(bot, user_id, "\n".join(out))
 
             print("-------------------------")
     except Exception:
         logging.exception("Unhandled exception in message_handler")
         if user_id is not None:
-            await bot.send_message(
-                chat_id=user_id,
-                text="⚠️ Не удалось обработать запрос полностью. Попробуйте ещё раз позже.",
+            await send_message_with_retry(
+                bot,
+                user_id,
+                "⚠️ Не удалось обработать запрос полностью. Попробуйте ещё раз позже.",
+                max_retries=2,
             )
 
 
