@@ -9,21 +9,18 @@ import shlex
 import aiohttp
 import memcache
 import requests
+from aiogram import Bot, Dispatcher
+from aiogram.types import Message
+from aiogram.exceptions import TelegramNetworkError
 from aiohttp import ClientResponseError
 from bs4 import BeautifulSoup
 from nats.aio.client import Client as NATS
-from telegram import Bot, Update
-from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
-from telegram.error import TimedOut
-from telegram.request import HTTPXRequest
-from telegram.error import TimedOut
-from telegram.request import HTTPXRequest
 
 # ================== CONFIG ==================
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 NATS_SUBJECT = "habr.requests"
-NATS_URL = "nats://nats:4222"
+NATS_URL = os.getenv("NATS_URL", "nats://nats:4222")
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = (
@@ -32,12 +29,13 @@ OPENROUTER_MODEL = (
 AI_CACHE_TTL = 60 * 60 * 24 * 7  # 7 days
 WEEKLY_NUM_OF_PAGES = 6  # 20 articles per page
 BATCH_SIZE = 5
-OPENROUTER_REQUEST_TIMEOUT_SEC = 60
+OPENROUTER_REQUEST_TIMEOUT_SEC = 75 # seconds
 OPENROUTER_MAX_ATTEMPTS = 2
 
 TELEGRAM_REQUEST_TIMEOUT_SEC = 30
 TELEGRAM_SEND_MESSAGE_RETRIES = 3
 TELEGRAM_SEND_MESSAGE_RETRY_DELAY = 2
+NATS_CONNECT_RETRY_DELAY_SEC = 2
 
 # ================== CONST ==================
 
@@ -147,34 +145,42 @@ AUTHORS = [
     "ignatenkosergey",  # LLM slop
     "inkedsymon",  # LLM rewriter
     "strannik96",  # LLM rewriter
-    "claudedev", # LLM slop
-    "tripolskypetr" # trader
+    "claudedev",  # LLM slop
+    "tripolskypetr",  # trader
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
 
 # ================== GLOBALS ==================
 
-# Configure telegram bot with custom timeout
-request = HTTPXRequest(connect_timeout=TELEGRAM_REQUEST_TIMEOUT_SEC, read_timeout=TELEGRAM_REQUEST_TIMEOUT_SEC)
-bot = Bot(token=BOT_TOKEN, request=request)
+# Configure telegram bot
+bot = Bot(token=BOT_TOKEN)
 mc = memcache.Client(["memcached:11211"])
 http_session: aiohttp.ClientSession | None = None
 
 
-# By Copilot
-async def send_message_with_retry(bot: Bot, chat_id: int, text: str, max_retries: int = TELEGRAM_SEND_MESSAGE_RETRIES, retry_delay: float = TELEGRAM_SEND_MESSAGE_RETRY_DELAY) -> bool:
+async def send_message_with_retry(
+    bot: Bot,
+    chat_id: int,
+    text: str,
+    max_retries: int = TELEGRAM_SEND_MESSAGE_RETRIES,
+    retry_delay: float = TELEGRAM_SEND_MESSAGE_RETRY_DELAY,
+) -> bool:
     """Send message to Telegram with retry logic for timeout errors."""
     for attempt in range(max_retries):
         try:
             await bot.send_message(chat_id=chat_id, text=text)
             return True
-        except TimedOut:
+        except (TelegramNetworkError, asyncio.TimeoutError):
             if attempt < max_retries - 1:
-                logging.warning(f"Telegram timeout (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                logging.warning(
+                    f"Telegram timeout (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s..."
+                )
                 await asyncio.sleep(retry_delay)
             else:
-                logging.error(f"Failed to send message after {max_retries} attempts: TimedOut")
+                logging.error(
+                    f"Failed to send message after {max_retries} attempts: timeout/network error"
+                )
                 return False
         except Exception as e:
             logging.error(f"Error sending message: {e}")
@@ -199,18 +205,62 @@ async def get_http_session():
     return http_session
 
 
+async def connect_nats_with_retry(max_attempts: int = 0) -> NATS:
+    """Connect to NATS with retries. max_attempts=0 means infinite retries."""
+    nc = NATS()
+    servers = [NATS_URL, "nats://127.0.0.1:4222"]
+    attempt = 0
+
+    while True:
+        attempt += 1
+        try:
+            await nc.connect(
+                servers=servers,
+                allow_reconnect=True,
+                reconnect_time_wait=NATS_CONNECT_RETRY_DELAY_SEC,
+                max_reconnect_attempts=-1,
+            )
+            logging.info("Connected to NATS on attempt %d via %s", attempt, servers)
+            return nc
+        except Exception as e:
+            if max_attempts > 0 and attempt >= max_attempts:
+                logging.error(
+                    "Failed to connect to NATS after %d attempts via %s: %s",
+                    attempt,
+                    servers,
+                    e,
+                )
+                raise
+
+            logging.warning(
+                "NATS connect attempt %d failed via %s: %s. Retrying in %ss.",
+                attempt,
+                servers,
+                e,
+                NATS_CONNECT_RETRY_DELAY_SEC,
+            )
+            await asyncio.sleep(NATS_CONNECT_RETRY_DELAY_SEC)
+
+
 # ================== TELEGRAM ==================
 
 
-async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    message = update.message.text
+async def handle_all(msg: Message):
+    if msg.from_user is None:
+        return
+
+    user_id = msg.from_user.id
+    message = msg.text or ""
 
     print(f"Processing message for user {user_id}")
     print(f"Processing message {message}")
 
-    nc = NATS()
-    await nc.connect(servers=[NATS_URL])
+    try:
+        nc = await connect_nats_with_retry(max_attempts=3)
+    except Exception:
+        logging.exception("Unable to connect to NATS in bot handler")
+        await msg.answer("⚠️ Сервис временно недоступен. Попробуйте ещё раз позже.")
+        return
 
     payload = {"user_id": user_id, "message": message}
 
@@ -233,27 +283,35 @@ async def handle_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Проверяет на AI текст /habr_ai"
         )
     elif "/habr_ai" in message:
-        response = "⏳ Подождите, мы собираем статьи... (это будет долго... возможно) [UTC " + str(datetime.datetime.now()) + "]"
+        response = (
+            "⏳ Подождите, мы собираем статьи... (это будет долго... возможно) [UTC "
+            + str(datetime.datetime.now())
+            + "]"
+        )
         await nc.publish(NATS_SUBJECT, json.dumps(payload).encode())
     else:
-        response = "⏳ Подождите, мы собираем статьи... [UTC " + str(datetime.datetime.now()) + "]"
+        response = (
+            "⏳ Подождите, мы собираем статьи... [UTC "
+            + str(datetime.datetime.now())
+            + "]"
+        )
         await nc.publish(NATS_SUBJECT, json.dumps(payload).encode())
 
     # Sending the response(s)
     if isinstance(response, list):
         for text in response:
-            await update.message.reply_text(text)
+            await msg.answer(text)
     else:
-        await update.message.reply_text(response)
+        await msg.answer(response)
 
     await nc.close()
 
 
-def start_bot():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.ALL, handle_all))
+async def start_bot():
+    dp = Dispatcher()
+    dp.message.register(handle_all)
     print("Telegram bot is running...")
-    app.run_polling()
+    await dp.start_polling(bot)
 
 
 # ================== SCRAPING ==================
@@ -633,8 +691,7 @@ async def message_handler(msg):
 
 
 async def start_worker():
-    nc = NATS()
-    await nc.connect(servers=[NATS_URL])
+    nc = await connect_nats_with_retry(max_attempts=0)
 
     await nc.subscribe(NATS_SUBJECT, cb=message_handler)
     print("Worker is listening for messages...")
@@ -656,7 +713,7 @@ def main():
     args = parser.parse_args()
 
     if args.mode == "bot":
-        start_bot()
+        asyncio.run(start_bot())
     elif args.mode == "worker":
         asyncio.run(start_worker())
 
