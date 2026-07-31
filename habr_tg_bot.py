@@ -3,15 +3,15 @@ import datetime
 import json
 import logging
 import os
+import shlex
 import time
 
-import shlex
 import aiohttp
 import memcache
 import requests
 from aiogram import Bot, Dispatcher
-from aiogram.types import Message
 from aiogram.exceptions import TelegramNetworkError
+from aiogram.types import Message
 from aiohttp import ClientResponseError
 from bs4 import BeautifulSoup
 from nats.aio.client import Client as NATS
@@ -147,6 +147,7 @@ AUTHORS = [
     "strannik96",  # LLM rewriter
     "claudedev",  # LLM slop
     "tripolskypetr",  # trader
+    "leonidasthegraet",  # LLM slop
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS

@@ -1,12 +1,18 @@
-# telegram_bot_habr
+# Telegram bot for Habr
+
+## TL;DR
+
+<https://t.me/skysisstant_bot>
+
+@skysisstant_bot
 
 ## EN
 
 Read Habr weekly
 
 - Best of the week /habr:
-  RationalAnswer Articles
-  Top financial news for the week
+  - RationalAnswer Articles
+  - Top financial news for the week
 - Marks useless articles according to stop words /stop_words
 - Checks the text /habr_ai for AI
 
@@ -15,8 +21,8 @@ Read Habr weekly
 Читайте Habr еженедельно
 
 - Лучшее за неделю /habr:
-  Статьи RationalAnswer
-  Топ финансовых новостей за неделю
+  - Статьи RationalAnswer
+  - Топ финансовых новостей за неделю
 - Помечает бесполезные статьи согласно стоп-слов /stop_words
 - Проверяет на AI текст /habr_ai
 
