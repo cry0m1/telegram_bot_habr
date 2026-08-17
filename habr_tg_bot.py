@@ -148,6 +148,8 @@ AUTHORS = [
     "claudedev",  # LLM slop
     "tripolskypetr",  # trader
     "leonidasthegraet",  # LLM slop
+    "alizar",  # rewriter
+    "dalerank",  # LLM slop
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
@@ -357,7 +359,7 @@ def strike_stopwords(text, stopwords):
     text_l = text.lower()
     for w in stopwords:
         if w.lower() in text_l:
-            return f"[🗑️] {text}"
+            return f"🗑️ {text}"
     return text
 
 
