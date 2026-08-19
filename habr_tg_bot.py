@@ -151,6 +151,7 @@ AUTHORS = [
     "alizar",  # rewriter
     "dalerank",  # LLM slop
     "DonnaG",  # LLM slop
+    "danyathewriter",  # LLM slop
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
