@@ -23,9 +23,7 @@ NATS_SUBJECT = "habr.requests"
 NATS_URL = os.getenv("NATS_URL", "nats://nats:4222")
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = (
-    "nvidia/nemotron-3-nano-30b-a3b:free"  # meta-llama/llama-3.3-70b-instruct:free
-)
+OPENROUTER_MODEL = "minimax/minimax-m3:free"  # "nvidia/nemotron-3-nano-30b-a3b:free"
 AI_CACHE_TTL = 60 * 60 * 24 * 7  # 7 days
 WEEKLY_NUM_OF_PAGES = 6  # 20 articles per page
 BATCH_SIZE = 5
@@ -152,6 +150,7 @@ AUTHORS = [
     "dalerank",  # LLM slop
     "DonnaG",  # LLM slop
     "danyathewriter",  # LLM slop
+    "MrSotnik",  # LLM slop
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
@@ -689,7 +688,7 @@ async def message_handler(msg):
                     )
 
             progress = min(start + BATCH_SIZE, total_articles)
-            out.append(f"Processed {progress} of {total_articles} articles.")
+            out.append(f"\nProcessed {progress} of {total_articles} articles.\n")
 
             await send_message_with_retry(bot, user_id, "\n".join(out))
 
