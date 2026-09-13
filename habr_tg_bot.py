@@ -23,7 +23,7 @@ NATS_SUBJECT = "habr.requests"
 NATS_URL = os.getenv("NATS_URL", "nats://nats:4222")
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = "minimax/minimax-m3:free"  # "nvidia/nemotron-3-nano-30b-a3b:free"
+OPENROUTER_MODEL = "inclusionai/ling-3.0-flash-fin:free"  # "minimax/minimax-m3:free"  # "nvidia/nemotron-3-nano-30b-a3b:free"
 AI_CACHE_TTL = 60 * 60 * 24 * 7  # 7 days
 WEEKLY_NUM_OF_PAGES = 6  # 20 articles per page
 BATCH_SIZE = 5
