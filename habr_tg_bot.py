@@ -151,7 +151,9 @@ AUTHORS = [
     "DonnaG",  # LLM slop
     "danyathewriter",  # LLM slop
     "MrSotnik",  # LLM slop
-    "Qwertcoser", # LLM slop
+    "Qwertcoser",  # LLM slop
+    "MainEl",  # LLM slop
+    "AntTarasov",  # infogypsy
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
