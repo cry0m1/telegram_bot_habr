@@ -155,6 +155,8 @@ AUTHORS = [
     "MainEl",  # LLM slop
     "AntTarasov",  # infogypsy
     "ToxaBes",  # LLM slop
+    "stas_makarov",  # LLM slop
+    "DmitrySozonov",  # LLM slop
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
@@ -179,7 +181,7 @@ async def send_message_with_retry(
         try:
             await bot.send_message(chat_id=chat_id, text=text)
             return True
-        except (TelegramNetworkError, asyncio.TimeoutError):
+        except (TimeoutError, TelegramNetworkError):
             if attempt < max_retries - 1:
                 logging.warning(
                     f"Telegram timeout (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s..."
@@ -564,7 +566,7 @@ async def detect_ai_score_batch(texts: list[str]) -> list[int | None]:
                 return scores
 
         except (
-            asyncio.TimeoutError,
+            TimeoutError,
             aiohttp.ClientError,
             json.JSONDecodeError,
             KeyError,
