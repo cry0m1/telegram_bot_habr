@@ -157,6 +157,7 @@ AUTHORS = [
     "ToxaBes",  # LLM slop
     "stas_makarov",  # LLM slop
     "DmitrySozonov",  # LLM slop
+    "by-sonic",  # manager
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
