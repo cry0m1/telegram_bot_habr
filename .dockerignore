@@ -1,0 +1,9 @@
+.git
+.venv
+.cache
+model
+__pycache__
+*.py[cod]
+.env
+.env.*
+.envrc
