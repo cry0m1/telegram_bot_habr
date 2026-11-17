@@ -23,7 +23,7 @@ NATS_SUBJECT = "habr.requests"
 NATS_URL = os.getenv("NATS_URL", "nats://nats:4222")
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = "dots-3-note-preview" # "poolside/laguna-s-2.1:free"  # "minimax/minimax-m3:free"  # "nvidia/nemotron-3-nano-30b-a3b:free"
+OPENROUTER_MODEL = "dots-studio/dots-3-note-preview:free" # "poolside/laguna-s-2.1:free"  # "minimax/minimax-m3:free"  # "nvidia/nemotron-3-nano-30b-a3b:free"
 AI_CACHE_TTL = 60 * 60 * 24 * 7  # 7 days
 WEEKLY_NUM_OF_PAGES = 6  # 20 articles per page
 BATCH_SIZE = 5
@@ -158,6 +158,7 @@ AUTHORS = [
     "stas_makarov",  # LLM slop
     "DmitrySozonov",  # LLM slop
     "by-sonic",  # manager
+    "LizzieSimpson" # shit news
 ]
 
 STOPWORDS = COMPANY_NAMES + HUBS + AUTHORS
@@ -367,6 +368,7 @@ def strike_stopwords(text, stopwords):
     text_l = text.lower()
     for w in stopwords:
         if w.lower() in text_l:
+            return f"🗑️ {text}"
             return f"🗑️ {text}"
     return text
 
